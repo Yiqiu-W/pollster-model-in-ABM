@@ -1,0 +1,127 @@
+globals[
+  ;density
+  ;movement
+]
+
+breed[pollsters pollster] ; agents of differnt kind
+breed[people person]
+
+people-own[interviewed?] ; attribute: being interviewed nor not
+pollsters-own[step]
+
+to setup
+  ca
+  reset-ticks
+
+  ask patches[set pcolor white] ; set background color white
+
+  ask n-of (count patches * density) patches [sprout-people 1] ; create (0.25*number of patches) people
+
+  ask people[
+    set color grey + 2
+    set shape "person"
+    set interviewed? false ; none of them are interviewed from the very beginning
+  ]
+
+  create-pollsters 1 [     ; create a pollster
+    set color violet
+    set size 1.5
+    setxy 0 0 ; place the pollster in the middle
+    pen-down ; leave a trace
+    set step 0
+  ]
+
+end
+
+to go
+  if(ticks = 1000)[stop] ; the game runs at most 1000 times
+  tick
+
+  ask people [wander] ; people wander around
+
+  ask pollsters [     ; pollster walks and interviews
+    move
+    interview
+  ]
+
+  ask people with [interviewed? = true][
+    recommend   ; people who are already interviewed will recommend others to approach the pollster
+  ]
+end
+
+to wander
+  set heading (heading - 30 + random 60) ; direction -30 to 30 degree
+  ; rt random 30 lt random 30
+  forward 1   ; go one step
+end
+
+to move
+  if(movement = "stand-still")[]         ; do not move
+  if(movement = "random-walk")[wander]   ; walk like how people wander
+  if(movement = "circle")[
+    set heading (heading + 7)            ; walk in a circle
+    fd 1
+  ]
+  if(movement = "square")[               ; walk in a square
+    if(step = 15)[                       ; each edge should be 15 steps long
+      rt 90                              ; turn 90 degrees
+      set step 0                         ; count 15 steps from 0
+    ]
+    fd 1                                 ; go one step
+    set step (step + 1)                  ; record the steps
+  ]
+  if(movement = "drunkard")[             ; walk randomly any direction is acceptable
+    set heading (random 360)
+    fd 1
+  ]
+end
+
+to interview
+  ask pollsters[
+    let interviewees people-here with [interviewed? = false] ; find all potential interviewees
+    if any? interviewees [                                   ; if there is any potential interviewee
+    let interviewee one-of interviewees                      ; choose only one to interview
+      ask interviewee[
+        set interviewed? one-of [true false]  ; it either gets interviewd or not 50-50 chance
+        ifelse (interviewed? = true)[         ; if it is interviewed
+        set color red
+        print (word "Person " who " interviewed on tick " ticks)
+        ][                                    ; if it refused the interview
+        set color cyan
+        print (word "Person " who " refused the interview on tick " ticks)
+        ]
+    ]
+   ]
+ ]
+end
+
+; interviewees tell other passers by to head towards the pollster
+
+to recommend
+    ask (people-on neighbors) with [interviewed? = false][        ; people in 8 patches nearby do...
+      set heading towards one-of pollsters ; head toward the position of the pollster
+    ]
+    ask (other people-here) with [interviewed? = false][          ; people in the same patch do...
+      set heading towards one-of pollsters
+    ]
+end
+
+
+
+
+
+to-report success
+  let x count people with [interviewed? = true]
+  let y count people
+  report precision (x / y * 100) 2
+end
+
+; In the original model, the best strategy is to stand still and the success rate is about 55%. Choosing the drunkard walking mode gives a success rate of about 52%.
+; Choosing other three walking modes gives similar success rates which are slightly lower than 50%.
+; After modifying the model, standing still is still the most successful strategy but the success rate increases dramatically and reached about 90%.
+; The success rate of choosing drunkard also increased and reached around 60%. But the success rates of choosing the other three walking modes became less than 25%.
+
+; In the modified model, although people could refuse the interview, they might take the interview the next time.
+; Also, people who have been interviewed would "guide" people who are not interviewed to the pollster.
+; So the results from the modified model make sense because if the pollster just stand still, it would be easier for potential interviewees to find the pollster.
+; Or the pollster could be running away from interviewing oppotunities.
